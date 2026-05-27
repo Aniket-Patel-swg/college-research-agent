@@ -1,0 +1,19 @@
+[Unit]
+Description=College Research Agent (Express + Gemini)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/college-research-agent
+EnvironmentFile=/opt/college-research-agent/.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=5
+# Gemini research can run several minutes on cache miss.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

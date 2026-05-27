@@ -1,0 +1,74 @@
+name: terraform-infra
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - "!infra/terraform/bootstrap/**"
+      - ".github/workflows/terraform-infra.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - "!infra/terraform/bootstrap/**"
+      - ".github/workflows/terraform-infra.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+
+      - name: Terraform apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Summary
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          {
+            echo "### Infra outputs"
+            echo ""
+            echo "| Output | Value |"
+            echo "|---|---|"
+            echo "| agent_base_url | $(terraform output -raw agent_base_url) |"
+            echo "| instance_id | $(terraform output -raw instance_id) |"
+            echo "| health_check_url | $(terraform output -raw health_check_url) |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,20 @@
+aws_region = "ap-south-1"
+
+# AWS Free Tier: 750 hrs/month of t2.micro for 12 months (new accounts).
+instance_type = "t2.micro"
+
+# REQUIRED — never commit terraform.tfvars with this value.
+gemini_api_key = "your-gemini-api-key"
+
+gemini_model           = "gemini-2.5-flash-lite"
+gemini_formatter_model = "gemini-3.5-flash"
+
+# Restrict in production to your frontend origin(s):
+# allowed_origins = "https://your-app.vercel.app,http://localhost:3000"
+allowed_origins = "*"
+
+# Globally unique S3 bucket name for CI artifacts:
+# deploy_bucket_name = "admissions-college-research-agent-deploy-<account-id>"
+
+# Optional SSH (leave empty — use SSM Session Manager instead):
+# ssh_cidr_blocks = ["203.0.113.10/32"]

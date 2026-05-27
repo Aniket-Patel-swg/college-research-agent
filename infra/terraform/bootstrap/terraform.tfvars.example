@@ -1,0 +1,7 @@
+aws_region   = "ap-south-1"
+github_owner = "your-github-username-or-org"
+github_repo  = "college-research-agent"
+
+github_oidc_provider_arn = "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+
+deploy_bucket_name = "admissions-college-research-agent-deploy"
