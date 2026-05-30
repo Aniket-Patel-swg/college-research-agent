@@ -14,6 +14,7 @@ import {
   isCacheable,
   putCached,
 } from "./cache.js";
+import { COLLEGES, isCollegeName } from "./colleges.js";
 
 const PORT = Number(process.env.PORT ?? 4810);
 
@@ -34,6 +35,18 @@ app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", uptime: process.uptime() });
 });
 
+app.get("/colleges", (_req: Request, res: Response) => {
+  res.json(
+    (COLLEGES as readonly { instCode: string; name: string; featured?: boolean }[]).map(
+      ({ instCode, name, featured }) => ({
+        instCode,
+        name,
+        featured: featured ?? false,
+      }),
+    ),
+  );
+});
+
 type CollegeDetailsRequest = { collegeName?: string; refresh?: boolean };
 
 async function handleCollegeDetails(
@@ -41,15 +54,12 @@ async function handleCollegeDetails(
   refresh: boolean,
   res: Response,
 ): Promise<void> {
-  const cacheKey = buildCacheKey(collegeName);
-  if (!cacheKey) {
-    res.status(400).json({ error: "collegeName cannot be empty" });
+  if (!isCollegeName(collegeName)) {
+    res.status(400).json({ error: "invalid college enum" });
     return;
   }
 
-  // Hold onto any existing cache row so we can (a) serve it on a non-refresh
-  // hit and (b) compare scores after a refresh so we never replace a richer
-  // entry with a thinner one.
+  const cacheKey = buildCacheKey(collegeName);
   const existing = await getCached(cacheKey);
   if (!refresh && existing) {
     res.json(existing);
@@ -63,9 +73,6 @@ async function handleCollegeDetails(
     const fmt = (n: number) => n.toFixed(2);
 
     if (!isCacheable(details)) {
-      // Too thin even for the lowered bar — don't pollute the cache. If we
-      // already had something cached, serve the better cached payload back
-      // to the caller instead of the new thin one.
       console.warn(
         `[college-details] NOT caching "${collegeName}" (score=${fmt(score)}, missing=${missing.join(",") || "—"})`,
       );
@@ -80,8 +87,6 @@ async function handleCollegeDetails(
       );
       res.json(details);
     } else {
-      // New run is thinner than what's already cached — keep the existing
-      // entry so the cache is monotonically improving, and serve it back.
       console.log(
         `[college-details] keeping richer cache for "${collegeName}" (new=${fmt(score)} < cached=${fmt(oldScore)})`,
       );
