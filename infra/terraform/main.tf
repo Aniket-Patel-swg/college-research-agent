@@ -30,9 +30,9 @@ resource "aws_dynamodb_table" "cache" {
     type = "S"
   }
 
+  # Explicitly off — cache rows persist until overwritten via refresh.
   ttl {
-    attribute_name = "ttl"
-    enabled        = true
+    enabled = false
   }
 }
 
@@ -217,7 +217,6 @@ locals {
     AWS_REGION=${var.aws_region}
     CACHE_ENABLED=true
     CACHE_TABLE_NAME=${var.cache_table_name}
-    CACHE_TTL_SECONDS=${var.cache_ttl_seconds}
     GEMINI_MODEL=${var.gemini_model}
     GEMINI_FORMATTER_MODEL=${var.gemini_formatter_model}
     ALLOWED_ORIGINS=${var.allowed_origins}

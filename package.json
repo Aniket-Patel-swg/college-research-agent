@@ -1,7 +1,7 @@
 {
   "name": "college-research-agent",
   "version": "1.0.0",
-  "description": "Agentic API that researches engineering colleges on the live web using Google Gemini's Google Search grounding tool and returns structured details. Complete results are cached in DynamoDB (TTL 7 days) to avoid burning AI tokens on the same query.",
+  "description": "Agentic API that researches engineering colleges on the live web using Google Gemini's Google Search grounding tool and returns structured details. Complete results are cached in DynamoDB (no expiry) to avoid burning AI tokens on the same query.",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {

@@ -4,7 +4,6 @@ import {
   DynamoDBClient,
   ResourceInUseException,
   ResourceNotFoundException,
-  UpdateTimeToLiveCommand,
   waitUntilTableExists,
 } from "@aws-sdk/client-dynamodb";
 import {
@@ -17,7 +16,6 @@ import type { CollegeDetails } from "./types.js";
 
 const CACHE_ENABLED = process.env.CACHE_ENABLED !== "false";
 const TABLE_NAME = process.env.CACHE_TABLE_NAME ?? "CollegeResearchCache";
-const TTL_SECONDS = Number(process.env.CACHE_TTL_SECONDS ?? 60 * 60 * 24 * 7);
 const REGION = process.env.AWS_REGION ?? "ap-south-1";
 
 let rawClient: DynamoDBClient | null = null;
@@ -41,8 +39,8 @@ function getClient(): DynamoDBDocumentClient {
 
 /**
  * Bootstrap the cache on app startup: create the DynamoDB table if it doesn't
- * exist, enable TTL on the `ttl` attribute, and warm the SDK client so the
- * first /college-details request doesn't pay the credential-resolution cost.
+ * exist and warm the SDK client so the first /college-details request doesn't
+ * pay the credential-resolution cost.
  *
  * Idempotent — safe to call on every boot. Non-fatal on transient AWS errors
  * (we log and continue; cache reads/writes already swallow failures).
@@ -94,21 +92,6 @@ export async function ensureCacheTable(): Promise<void> {
     { TableName: TABLE_NAME },
   );
   console.log(`[cache] DynamoDB table "${TABLE_NAME}" is ACTIVE`);
-
-  try {
-    await ddb.send(
-      new UpdateTimeToLiveCommand({
-        TableName: TABLE_NAME,
-        TimeToLiveSpecification: { Enabled: true, AttributeName: "ttl" },
-      }),
-    );
-    console.log(`[cache] TTL enabled on "${TABLE_NAME}" (attribute=ttl)`);
-  } catch (err) {
-    console.warn(
-      `[cache] UpdateTimeToLive failed (non-fatal):`,
-      err instanceof Error ? err.message : err,
-    );
-  }
 }
 
 /**
@@ -202,7 +185,6 @@ export function checkCompleteness(d: CollegeDetails): {
 type CacheRow = {
   cacheKey: string;
   payload: CollegeDetails;
-  ttl: number;
 };
 
 export async function getCached(
@@ -215,8 +197,6 @@ export async function getCached(
     );
     const item = res.Item as CacheRow | undefined;
     if (!item) return null;
-    // Belt-and-braces TTL guard in case DynamoDB hasn't garbage-collected yet.
-    if (item.ttl && item.ttl * 1000 < Date.now()) return null;
     return { ...item.payload, fromCache: true };
   } catch (err) {
     console.warn("[cache] DynamoDB get failed, falling through:", err);
@@ -230,11 +210,9 @@ export async function putCached(
 ): Promise<void> {
   if (!CACHE_ENABLED) return;
   try {
-    const ttl = Math.floor(Date.now() / 1000) + TTL_SECONDS;
     const row: CacheRow = {
       cacheKey,
       payload: { ...payload, fromCache: false },
-      ttl,
     };
     await getClient().send(
       new PutCommand({ TableName: TABLE_NAME, Item: row }),

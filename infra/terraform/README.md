@@ -18,7 +18,7 @@ GitHub Actions: terraform plan / apply
 |----------|---------|
 | `aws_instance` (t2.micro) | Runs `node dist/server.js` via systemd |
 | `aws_eip` | Stable public IP for `COLLEGE_AGENT_BASE_URL` |
-| `aws_dynamodb_table` | `CollegeResearchCache` (7-day TTL) |
+| `aws_dynamodb_table` | `CollegeResearchCache` (no TTL — persistent cache) |
 | `aws_s3_bucket` | CI release tarballs (`releases/<id>.tar.gz`) |
 | `aws_ssm_parameter` | SecureString for `GEMINI_API_KEY` |
 | `aws_security_group` | TCP `${app_port}` (default 4810) |

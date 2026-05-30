@@ -2,7 +2,7 @@ name: terraform-infra
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - "infra/terraform/**"
       - "!infra/terraform/bootstrap/**"

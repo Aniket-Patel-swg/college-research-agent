@@ -19,11 +19,6 @@ variable "cache_table_name" {
   default = "CollegeResearchCache"
 }
 
-variable "cache_ttl_seconds" {
-  type    = number
-  default = 604800
-}
-
 variable "gemini_api_key" {
   description = "Gemini API key (stored in SSM SecureString, injected into EC2 .env)."
   type        = string

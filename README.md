@@ -2,7 +2,7 @@
 
 A small, standalone Node.js + Express service that takes a college name, runs a **Google Gemini** agent with the built-in **Google Search** grounding tool, and returns structured JSON for the **College Details** page.
 
-Results are cached in DynamoDB for **7 days** (configurable). The cache is **gated on completeness** — if the agent couldn't find enough fields, the response is still returned to the caller but it is NOT persisted, so the next request will re-run the agent instead of serving a half-empty record for a week.
+Results are cached in DynamoDB **without expiry**. The cache is **gated on completeness** — if the agent couldn't find enough fields, the response is still returned to the caller but it is NOT persisted. Use `refresh=true` to re-run Gemini and overwrite a cached row when you want updated data.
 
 ```
 ┌────────────────┐   POST /college-details   ┌──────────────────────┐
@@ -12,7 +12,7 @@ Results are cached in DynamoDB for **7 days** (configurable). The cache is **gat
                                                   │ hit       │ miss
                                        ┌──────────▼───┐  ┌────▼────────────────────┐
                                        │ DynamoDB     │  │ Gemini 2.5 Flash        │
-                                       │ cache (TTL)  │  │ + googleSearch tool     │
+                                       │ cache        │  │ + googleSearch tool     │
                                        └──────────────┘  └─────────────────────────┘
                                               ▲
                                               └──── write only if response passes
@@ -75,12 +75,9 @@ aws dynamodb create-table \
   --key-schema           AttributeName=cacheKey,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
   --region ap-south-1
-
-aws dynamodb update-time-to-live \
-  --table-name CollegeResearchCache \
-  --time-to-live-specification "Enabled=true,AttributeName=ttl" \
-  --region ap-south-1
 ```
+
+(No TTL — rows persist until overwritten.)
 
 ### IAM permissions (minimum)
 
@@ -113,7 +110,6 @@ See [`.env.example`](.env.example) for the full list. Key vars:
 
 - `GEMINI_API_KEY` (required)
 - `GEMINI_MODEL` — defaults to `gemini-2.5-flash`.
-- `CACHE_TTL_SECONDS` — defaults to `604800` (7 days).
 - `CACHE_ENABLED` — set `false` to disable DynamoDB.
 - `ALLOWED_ORIGINS` — comma-separated list, or `*` for any.
 
