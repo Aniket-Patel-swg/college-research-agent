@@ -31,8 +31,10 @@ resource "aws_dynamodb_table" "cache" {
   }
 
   # Explicitly off — cache rows persist until overwritten via refresh.
+  # attribute_name is required by AWS when disabling TTL on a table that had it.
   ttl {
-    enabled = false
+    attribute_name = "ttl"
+    enabled        = false
   }
 }
 
