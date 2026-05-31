@@ -3,24 +3,37 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { CollegeDetails } from "./types.js";
 
 /**
- * JSON-schema description of the `CollegeDetails` payload, used as Gemini's
- * `responseSchema`. Every field is optional (no `required` arrays) so the
- * model is free to omit anything it couldn't verify — far better than
- * fabricating an empty string. Gemini 2.5+ accepts schemas alongside the
- * `googleSearch` grounding tool, so we get structured output AND citations.
- *
- * `sources`, `generatedAt`, `fromCache`, `query` are NOT in the schema —
- * we populate them ourselves from `groundingMetadata` and request context.
+ * JSON schema for Gemini structured output — matches CollegeDetails (minus
+ * sources / generatedAt / fromCache / query, which we add in code).
  */
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    collegeName: { type: Type.STRING },
-    institutionType: { type: Type.STRING },
-    location: { type: Type.STRING },
-    establishedYear: { type: Type.NUMBER },
-    websiteUrl: { type: Type.STRING },
-    about: { type: Type.STRING },
+    collegeName: {
+      type: Type.STRING,
+      description: "Official full college name.",
+    },
+    institutionType: {
+      type: Type.STRING,
+      description:
+        "e.g. Private University, Government, Govt-aided, Deemed, Autonomous.",
+    },
+    location: {
+      type: Type.STRING,
+      description: "City and state, e.g. Ahmedabad, Gujarat.",
+    },
+    establishedYear: {
+      type: Type.NUMBER,
+      description: "4-digit year the institute was founded.",
+    },
+    websiteUrl: {
+      type: Type.STRING,
+      description: "Official website URL including https://",
+    },
+    about: {
+      type: Type.STRING,
+      description: "2–3 sentence overview. Factual only.",
+    },
     quickStats: {
       type: Type.OBJECT,
       properties: {
@@ -32,7 +45,11 @@ const RESPONSE_SCHEMA = {
         nirfRank: { type: Type.STRING },
       },
     },
-    topRecruiters: { type: Type.ARRAY, items: { type: Type.STRING } },
+    topRecruiters: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Company names that recruit on campus (max 12).",
+    },
     cutoffTrends: {
       type: Type.ARRAY,
       items: {
@@ -45,9 +62,16 @@ const RESPONSE_SCHEMA = {
           notes: { type: Type.STRING },
         },
       },
+      description: "Recent ACPC/GUJCET/JEE closing ranks for flagship branches.",
     },
-    competitionLevel: { type: Type.STRING },
-    admissionType: { type: Type.STRING },
+    competitionLevel: {
+      type: Type.STRING,
+      description: 'Exactly one of: "Extremely High", "High", "Moderate", "Low".',
+    },
+    admissionType: {
+      type: Type.STRING,
+      description: 'e.g. "GUJCET + ACPC", "JEE Main + JoSAA".',
+    },
     campusInfrastructure: {
       type: Type.ARRAY,
       items: {
@@ -58,8 +82,15 @@ const RESPONSE_SCHEMA = {
         },
       },
     },
-    applicationDeadline: { type: Type.STRING },
-    yearlyFee: { type: Type.STRING },
+    applicationDeadline: {
+      type: Type.STRING,
+      description: "Next or most recent application deadline.",
+    },
+    yearlyFee: {
+      type: Type.STRING,
+      description:
+        "ONE short fee phrase only (max 80 chars), e.g. 'INR 1.36 Lakhs per year'. No reasoning, alternatives, or deliberation.",
+    },
     contact: {
       type: Type.OBJECT,
       properties: {
@@ -68,16 +99,16 @@ const RESPONSE_SCHEMA = {
         address: { type: Type.STRING },
       },
     },
-    highlights: { type: Type.ARRAY, items: { type: Type.STRING } },
+    highlights: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "2–6 distinguishing facts or achievements.",
+    },
   },
-};
+} as const;
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
-// Pass 2 (formatting) doesn't need grounding, so we can use the same flash
-// model with `responseSchema`. Override with GEMINI_FORMATTER_MODEL if you
-// want a cheaper / smaller model for the second hop.
-const FORMATTER_MODEL =
-  process.env.GEMINI_FORMATTER_MODEL ?? "gemini-3.5-flash";
+const FORMATTER_MODEL = "gemini-2.5-flash-lite";
 
 let client: GoogleGenAI | null = null;
 function getClient(): GoogleGenAI {
@@ -156,7 +187,9 @@ RULES:
 3. For NESTED OBJECTS (quickStats, contact): fill every sub-key that the brief mentions, anywhere — even if expressed casually (e.g. "the campus spans 50 acres" → quickStats.campusSize = "50 acres").
 4. Numbers (\`establishedYear\`, \`closingRankLow\`, \`closingRankHigh\`) must be plain numbers, not strings.
 5. \`competitionLevel\` must be exactly one of "Extremely High", "High", "Moderate", "Low" or omitted.
-6. Do NOT invent facts that are not in the brief. But if a fact is THERE, extract it.`;
+6. Do NOT invent facts that are not in the brief. But if a fact is THERE, extract it.
+7. \`yearlyFee\` and every other string field: emit ONLY the final user-facing value — one short phrase. Never include reasoning, alternatives, or "Let's use…" deliberation. If unsure, omit the key.
+8. Output MUST conform exactly to the response schema — valid JSON only, no extra keys.`;
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -209,6 +242,18 @@ function asString(v: unknown): string | undefined {
   // if the model dressed them up with extra commentary.
   if (NULLY_PATTERN.test(trimmed)) return undefined;
   return trimmed;
+}
+
+/** Drop chain-of-thought / over-long model output from display fields. */
+function sanitizeBriefString(v: unknown, maxLen: number): string | undefined {
+  const s = asString(v);
+  if (!s) return undefined;
+  if (s.length > maxLen) return undefined;
+  if (/let'?s\s+(write|use|stick|proceed|output|check|review|create|build|do|represent|emit)/i.test(s))
+    return undefined;
+  if (/\b(wait,|note:|perfect!|json object|validation schema)\b/i.test(s))
+    return undefined;
+  return s;
 }
 function asNumber(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -306,7 +351,7 @@ function normaliseAgentJson(
     admissionType: asString(raw.admissionType),
     campusInfrastructure,
     applicationDeadline: asString(raw.applicationDeadline),
-    yearlyFee: asString(raw.yearlyFee),
+    yearlyFee: sanitizeBriefString(raw.yearlyFee, 80),
     contact: {
       admissionsPhone: asString(contact.admissionsPhone),
       admissionsEmail: asString(contact.admissionsEmail),
@@ -424,15 +469,7 @@ async function formatPass(
       // highlights) can easily exceed 4k. Truncation here produces an
       // unparseable response and a 502 to the caller.
       maxOutputTokens: 8192,
-      // Disable thinking on the format pass — this is a pure structural
-      // reformat and we've observed thinking-traces leaking into string
-      // fields when it's left on. Gemini API rejects setting BOTH keys
-      // ("You can only set only one of thinking budget and thinking level"),
-      // so we pick whichever the active model accepts: 3.x → thinkingLevel,
-      // 2.x → thinkingBudget.
-      thinkingConfig: /^gemini-3/.test(FORMATTER_MODEL)
-        ? { thinkingLevel: "low" }
-        : { thinkingBudget: 0 },
+      thinkingConfig: { thinkingBudget: 0 },
       responseMimeType: "application/json",
       responseSchema: RESPONSE_SCHEMA,
     },

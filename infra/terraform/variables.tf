@@ -30,11 +30,6 @@ variable "gemini_model" {
   default = "gemini-2.5-flash-lite"
 }
 
-variable "gemini_formatter_model" {
-  type    = string
-  default = "gemini-3.5-flash"
-}
-
 variable "allowed_origins" {
   description = "CORS allowlist for the Express app (comma-separated)."
   type        = string

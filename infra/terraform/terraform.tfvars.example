@@ -6,8 +6,7 @@ instance_type = "t2.micro"
 # REQUIRED — never commit terraform.tfvars with this value.
 gemini_api_key = "your-gemini-api-key"
 
-gemini_model           = "gemini-2.5-flash-lite"
-gemini_formatter_model = "gemini-3.5-flash"
+gemini_model = "gemini-2.5-flash-lite"
 
 # Restrict in production to your frontend origin(s):
 # allowed_origins = "https://your-app.vercel.app,http://localhost:3000"

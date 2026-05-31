@@ -220,7 +220,7 @@ locals {
     CACHE_ENABLED=true
     CACHE_TABLE_NAME=${var.cache_table_name}
     GEMINI_MODEL=${var.gemini_model}
-    GEMINI_FORMATTER_MODEL=${var.gemini_formatter_model}
+    GEMINI_FORMATTER_MODEL=gemini-2.5-flash-lite
     ALLOWED_ORIGINS=${var.allowed_origins}
     DEPLOY_BUCKET=${aws_s3_bucket.deploy.bucket}
   EOT
